@@ -43,10 +43,11 @@ package.json
 frontend/
   src/App.jsx                main page, connects MetaMask and shows panels by role
   src/chain.js               contract helpers
+  src/ipfs.js                Pinata upload and document hash check
   src/components/            one file per panel, Product.jsx is the public product page
+oracle/
+  oracle.js                  simulated temperature/GPS sensor that sends readings to the contract
 ```
-
-The Node.js oracle relayer (`oracle/`) will be added in a later milestone.
 
 ## Contract functions
 
@@ -117,10 +118,35 @@ The page shows the panels for whatever roles the connected account has:
 - Producer: register a batch
 - Producer, distributor, retailer: list products you hold, ship, confirm receipt, mark delivered (retailer)
 - Regulator: certify a product
-- Custodians and regulator: attach a document (file is hashed in the browser, CID entered by hand)
-- Anyone: look up a product by ID. The product page shows status, custody history, sensor readings, documents and a QR code that links back to the same page. No wallet needed.
+- Custodians and regulator: attach a document. The file is hashed in the browser and uploaded to IPFS through Pinata, then the CID and hash are stored on chain
+- Anyone: look up a product by ID. The product page shows status, custody history, sensor readings, documents and a QR code that links back to the same page. The Check button downloads each document from IPFS and compares its hash with the one on chain. No wallet needed.
+
+To turn on IPFS uploads, create a free Pinata account, make an API key and put its JWT in `frontend/.env`:
+
+```
+VITE_PINATA_JWT=<your pinata jwt>
+```
+
+Without it the form asks for the CID by hand.
 
 If you restart `npx hardhat node`, reset the account in MetaMask (Settings > Advanced > Clear activity tab data) so the nonce starts over.
+
+## Oracle
+
+`oracle/oracle.js` acts as the sensor relayer. It sends simulated temperature and GPS readings for a product with `recordCondition`. The contract flags a breach if a reading is outside the product type's range. At the end it uploads the full sensor log JSON to IPFS and anchors it with `attachDocument` as a SensorLog.
+
+```bash
+cd oracle
+npm install
+node oracle.js 1            # 5 normal readings for product 1
+node oracle.js 1 8 --breach # 8 readings with one out of range
+```
+
+Locally it uses Hardhat account 5, which gets ORACLE_ROLE in the deploy script. Environment variables (see `oracle/.env.example`):
+
+- `RPC_URL`: defaults to the RPC saved by the deploy script
+- `ORACLE_KEY`: private key of the oracle account, defaults to Hardhat account 5
+- `PINATA_JWT`: if set, the sensor log is uploaded to IPFS, otherwise that step is skipped
 
 ## Team
 

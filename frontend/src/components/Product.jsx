@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { readOnly, STATUS, DOCS, startBlock, toC, short, date, errMsg } from "../chain.js";
+import { check, GATEWAY } from "../ipfs.js";
 
 function Product({ id }) {
   const [p, setP] = useState(null);
@@ -9,6 +10,7 @@ function Product({ id }) {
   const [docs, setDocs] = useState([]);
   const [readings, setReadings] = useState([]);
   const [error, setError] = useState("");
+  const [checks, setChecks] = useState({});
 
   // no wallet needed here, consumers just read
   async function load() {
@@ -27,6 +29,16 @@ function Product({ id }) {
       setP(prod);
     } catch (e) {
       setError(errMsg(e));
+    }
+  }
+
+  async function verify(i, d) {
+    setChecks((c) => ({ ...c, [i]: "Checking..." }));
+    try {
+      const ok = await check(d.cid, d.docHash);
+      setChecks((c) => ({ ...c, [i]: ok ? "Match" : "Hash mismatch" }));
+    } catch (e) {
+      setChecks((c) => ({ ...c, [i]: e.message }));
     }
   }
 
@@ -109,14 +121,15 @@ function Product({ id }) {
         <h2>Documents</h2>
         {docs.length === 0 ? <p className="sub">No documents yet.</p> : (
           <table>
-            <thead><tr><th>Type</th><th>CID</th><th>Hash</th><th>Added by</th></tr></thead>
+            <thead><tr><th>Type</th><th>CID</th><th>Hash</th><th>Added by</th><th>Verify</th></tr></thead>
             <tbody>
               {docs.map((d, i) => (
                 <tr key={i}>
                   <td>{DOCS[Number(d.docType)]}</td>
-                  <td><a href={"https://ipfs.io/ipfs/" + d.cid.replace("ipfs://", "")} target="_blank">{d.cid}</a></td>
+                  <td><a href={GATEWAY + d.cid.replace("ipfs://", "")} target="_blank">{d.cid}</a></td>
                   <td className="mono">{d.docHash.slice(0, 12)}...</td>
                   <td>{short(d.addedBy)}</td>
+                  <td>{checks[i] ? checks[i] : <button onClick={() => verify(i, d)}>Check</button>}</td>
                 </tr>
               ))}
             </tbody>

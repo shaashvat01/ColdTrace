@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ethers } from "ethers";
 import { DOCS, send } from "../chain.js";
+import { upload, hashFile, hasPinata } from "../ipfs.js";
 
 function AddDoc({ contract }) {
   const [id, setId] = useState("");
@@ -9,12 +9,22 @@ function AddDoc({ contract }) {
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState("");
 
-  // hash the file in the browser so anyone can check it later
+  // file goes to ipfs, only the cid and hash go on chain
   async function attach() {
     if (!file) return setMsg("Pick a file first");
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const hash = ethers.keccak256(bytes);
-    send(setMsg, () => contract.attachDocument(id, type, cid, hash));
+    const hash = await hashFile(file);
+    let fileCid = cid;
+    if (hasPinata) {
+      try {
+        setMsg("Uploading to IPFS...");
+        fileCid = await upload(file);
+        setCid(fileCid);
+      } catch (e) {
+        return setMsg("Error: " + e.message);
+      }
+    }
+    if (!fileCid) return setMsg("Enter a CID");
+    send(setMsg, () => contract.attachDocument(id, type, fileCid, hash));
   }
 
   return (
@@ -24,9 +34,9 @@ function AddDoc({ contract }) {
       <select value={type} onChange={(e) => setType(e.target.value)}>
         {DOCS.map((d, i) => <option key={d} value={i}>{d}</option>)}
       </select>
-      <input placeholder="IPFS CID" value={cid} onChange={(e) => setCid(e.target.value)} />
+      {!hasPinata && <input placeholder="IPFS CID" value={cid} onChange={(e) => setCid(e.target.value)} />}
       <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-      <button onClick={attach}>Attach</button>
+      <button onClick={attach}>{hasPinata ? "Upload and attach" : "Attach"}</button>
       <p className="msg">{msg}</p>
     </div>
   );
