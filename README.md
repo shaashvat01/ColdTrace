@@ -61,11 +61,31 @@ Temperatures are in tenths of a degree Celsius (40 means 4.0 C). Coordinates are
 | `updateStatus(productId, status)` | custodian | Shipped to InStorage (receipt), or InStorage to Delivered (retailer only) |
 | `attachDocument(productId, docType, cid, docHash)` | custodian, regulator, oracle | anchors an IPFS document |
 | `recordCondition(productId, reading)` | oracle | logs a temperature/GPS reading, flags a breach if out of range |
-| `certify(productId)` | regulator | marks the product as certified |
+| `certify(productId)` | regulator | marks the product as certified (once) |
+| `recall(productId, reason)` | regulator | recalls the product, after this it can not be shipped, received, delivered or certified |
 | `getHistory(productId)` | anyone | status and custody history |
 | `getProduct`, `getProductType`, `getDocuments`, `productCount` | anyone | read-only views |
 
-Events: `ProductRegistered`, `CustodyTransferred`, `StatusUpdated`, `DocumentAttached`, `ConditionRecorded`, `ProductCertified`, `ProductTypeAdded`.
+Events: `ProductRegistered`, `CustodyTransferred`, `StatusUpdated`, `DocumentAttached`, `ConditionRecorded`, `ProductCertified`, `ProductRecalled`, `ProductTypeAdded`.
+
+Errors (custom errors, the UI shows the name):
+
+| Error | When |
+|---|---|
+| `AccessControlUnauthorizedAccount` | caller does not have the needed role |
+| `UnknownProduct`, `UnknownProductType` | id was never registered |
+| `NotCustodian` | caller does not hold the product |
+| `InvalidRecipient` | shipping to yourself or to an account that is not a distributor or retailer |
+| `InvalidTransition` | skipping or reversing a status |
+| `NotAllowed` | caller can not attach that document |
+| `ProductClosed` | sensor reading for a delivered product |
+| `EmptyValue` | empty batch id, product type name or CID |
+| `DuplicateBatchId` | batch id already registered |
+| `ZeroHash` | document hash is empty |
+| `InvalidTempRange` | min temp above max temp |
+| `InvalidTimestamp` | reading time is 0 or more than 5 minutes in the future |
+| `AlreadyCertified`, `AlreadyRecalled` | doing it twice |
+| `IsRecalled` | trying to move or certify a recalled product |
 
 ## Setup
 
@@ -78,6 +98,8 @@ npm install
 npx hardhat compile
 npx hardhat test
 ```
+
+To see gas used per function run `npm run gas`. It writes the table to `gas-report.txt`.
 
 ## Deployment
 

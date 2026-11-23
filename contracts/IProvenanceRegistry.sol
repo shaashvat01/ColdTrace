@@ -37,6 +37,7 @@ interface IProvenanceRegistry {
         Status status;
         bool certified;
         bool breached;
+        bool recalled;
         uint64 createdAt;
         string metaCID;
     }
@@ -86,6 +87,9 @@ interface IProvenanceRegistry {
     // emitted when a regulator certifies a product
     event ProductCertified(uint256 indexed productId, address indexed regulator);
 
+    // emitted when a regulator recalls a product, it can not move after this
+    event ProductRecalled(uint256 indexed productId, address indexed regulator, string reason);
+
     // admin only, adds a product category with its temperature range
     function addProductType(string calldata name, int16 minTemp, int16 maxTemp) external returns (uint256 productTypeId);
 
@@ -106,6 +110,9 @@ interface IProvenanceRegistry {
 
     // regulator only, marks the product as certified
     function certify(uint256 productId) external;
+
+    // regulator only, stops a product from being shipped, received or delivered
+    function recall(uint256 productId, string calldata reason) external;
 
     // returns every status and custody change for a product
     function getHistory(uint256 productId) external view returns (HistoryEntry[] memory);

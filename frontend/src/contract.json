@@ -1,5 +1,5 @@
 {
-  "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
   "abi": [
     {
       "inputs": [
@@ -36,6 +36,44 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "productId",
+          "type": "uint256"
+        }
+      ],
+      "name": "AlreadyCertified",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "productId",
+          "type": "uint256"
+        }
+      ],
+      "name": "AlreadyRecalled",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "batchId",
+          "type": "string"
+        }
+      ],
+      "name": "DuplicateBatchId",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "EmptyValue",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "to",
           "type": "address"
@@ -63,6 +101,17 @@
     {
       "inputs": [
         {
+          "internalType": "uint64",
+          "name": "measuredAt",
+          "type": "uint64"
+        }
+      ],
+      "name": "InvalidTimestamp",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "uint256",
           "name": "productId",
           "type": "uint256"
@@ -79,6 +128,17 @@
         }
       ],
       "name": "InvalidTransition",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "productId",
+          "type": "uint256"
+        }
+      ],
+      "name": "IsRecalled",
       "type": "error"
     },
     {
@@ -144,6 +204,11 @@
         }
       ],
       "name": "UnknownProductType",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ZeroHash",
       "type": "error"
     },
     {
@@ -268,6 +333,31 @@
         }
       ],
       "name": "ProductCertified",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "productId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "regulator",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "reason",
+          "type": "string"
+        }
+      ],
+      "name": "ProductRecalled",
       "type": "event"
     },
     {
@@ -459,6 +549,19 @@
           "internalType": "bytes32",
           "name": "",
           "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_CLOCK_DRIFT",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
         }
       ],
       "stateMutability": "view",
@@ -721,6 +824,11 @@
               "type": "bool"
             },
             {
+              "internalType": "bool",
+              "name": "recalled",
+              "type": "bool"
+            },
+            {
               "internalType": "uint64",
               "name": "createdAt",
               "type": "uint64"
@@ -852,6 +960,24 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "productId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "reason",
+          "type": "string"
+        }
+      ],
+      "name": "recall",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -1017,5 +1143,5 @@
   ],
   "chainId": 31337,
   "rpc": "http://127.0.0.1:8545",
-  "block": 1
+  "block": 28
 }

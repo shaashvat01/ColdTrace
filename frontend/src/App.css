@@ -144,6 +144,19 @@ button:hover {
   background: #0d47a1;
 }
 
+button.red {
+  background: #c62828;
+}
+
+.recalled {
+  background: #c62828;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-top: 12px;
+  font-weight: bold;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

@@ -53,8 +53,11 @@ const iface = new ethers.Interface(info.abi);
 // turns the revert data into the contract error name like NotCustodian
 export function errMsg(e) {
   if (e.revert) return e.revert.name;
-  if (e.data) {
-    const parsed = iface.parseError(e.data);
+  // ethers and metamask put the revert data in different places
+  const list = [e.data, e.error?.data?.data, e.error?.data, e.info?.error?.data?.data, e.info?.error?.data];
+  const data = list.find((d) => typeof d === "string" && d.startsWith("0x"));
+  if (data) {
+    const parsed = iface.parseError(data);
     if (parsed) return parsed.name;
   }
   return e.shortMessage || e.message;

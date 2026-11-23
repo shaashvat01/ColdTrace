@@ -95,7 +95,9 @@ async function main() {
 
 main().catch((e) => {
   // show the contract error name like ProductClosed if there is one
-  const parsed = e.data ? new ethers.Interface(info.abi).parseError(e.data) : null;
+  const list = [e.data, e.error?.data?.data, e.error?.data];
+  const data = list.find((d) => typeof d === "string" && d.startsWith("0x"));
+  const parsed = data ? new ethers.Interface(info.abi).parseError(data) : null;
   console.error("Error:", parsed ? parsed.name : e.shortMessage || e.message);
   process.exitCode = 1;
 });

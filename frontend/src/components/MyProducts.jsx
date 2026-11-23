@@ -52,9 +52,10 @@ function MyProducts({ contract, account, roles }) {
                 <td><span className={"pill s" + s}>{STATUS[s]}</span></td>
                 <td>{p.breached ? <span className="pill bad">Breach</span> : <span className="pill good">OK</span>}</td>
                 <td>
-                  {(s === 0 || s === 2) && <button onClick={() => ship(p.id)}>Ship</button>}
-                  {s === 1 && <button onClick={() => receive(p.id)}>Confirm receipt</button>}
-                  {s === 2 && roles.includes("RETAILER") && <button onClick={() => deliver(p.id)}>Mark delivered</button>}
+                  {p.recalled && <span className="pill bad">Recalled</span>}
+                  {!p.recalled && (s === 0 || s === 2) && <button onClick={() => ship(p.id)}>Ship</button>}
+                  {!p.recalled && s === 1 && <button onClick={() => receive(p.id)}>Confirm receipt</button>}
+                  {!p.recalled && s === 2 && roles.includes("RETAILER") && <button onClick={() => deliver(p.id)}>Mark delivered</button>}
                 </td>
               </tr>
             );

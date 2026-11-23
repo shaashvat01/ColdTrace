@@ -57,6 +57,8 @@ function Product({ id }) {
     <div>
       <a href="#/">← Back</a>
 
+      {p.recalled && <div className="recalled">This batch was recalled by a regulator. Do not sell or use it.</div>}
+
       <div className="box top">
         <div>
           <h1>Batch {p.batchId}</h1>
@@ -65,6 +67,7 @@ function Product({ id }) {
             <span className={"pill s" + s}>{STATUS[s]}</span>
             <span className={p.certified ? "pill good" : "pill gray"}>{p.certified ? "Certified" : "Not certified"}</span>
             <span className={p.breached ? "pill bad" : "pill good"}>{p.breached ? "Temperature breach" : "Temperature OK"}</span>
+            {p.recalled && <span className="pill bad">Recalled</span>}
           </p>
           <p>Producer: {short(p.producer)}</p>
           <p>Current custodian: {short(p.custodian)}</p>

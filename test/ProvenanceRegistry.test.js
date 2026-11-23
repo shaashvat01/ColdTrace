@@ -1,7 +1,7 @@
 // tests for roles, state machine, custody, sensor readings, documents and certification
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
+const { loadFixture, time } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
 
 const Status = { Created: 0n, Shipped: 1n, InStorage: 2n, Delivered: 3n };
 const DocType = { Certificate: 0n, SensorLog: 1n, Photo: 2n, Other: 3n };
@@ -302,6 +302,9 @@ describe("ProvenanceRegistry", function () {
         .to.emit(registry, "ProductCertified")
         .withArgs(productId, regulator.address);
       expect((await registry.getProduct(productId)).certified).to.equal(true);
+      await expect(registry.connect(regulator).certify(productId))
+        .to.be.revertedWithCustomError(registry, "AlreadyCertified")
+        .withArgs(productId);
     });
 
     it("regulator attaches a certificate document", async function () {
@@ -338,6 +341,150 @@ describe("ProvenanceRegistry", function () {
         .to.be.revertedWithCustomError(registry, "NotAllowed");
       const docs = await registry.getDocuments(productId);
       expect(docs.map((d) => d.docType)).to.deep.equal([DocType.Other, DocType.SensorLog]);
+    });
+  });
+
+  describe("input validation", function () {
+    it("rejects an empty product type name", async function () {
+      const { registry } = await loadFixture(deploy);
+      await expect(registry.addProductType("", 0, 40)).to.be.revertedWithCustomError(registry, "EmptyValue");
+    });
+
+    it("rejects an empty batch id", async function () {
+      const { registry, producer } = await loadFixture(deployWithProduct);
+      await expect(registry.connect(producer).registerProduct("", "x", 1))
+        .to.be.revertedWithCustomError(registry, "EmptyValue");
+    });
+
+    it("rejects a duplicate batch id, even for another type", async function () {
+      const { registry, producer } = await loadFixture(deployWithProduct);
+      await expect(registry.connect(producer).registerProduct("LOT-001", "x", 2))
+        .to.be.revertedWithCustomError(registry, "DuplicateBatchId")
+        .withArgs("LOT-001");
+      expect(await registry.productCount()).to.equal(1n);
+    });
+
+    it("rejects an empty cid or zero hash", async function () {
+      const { registry, regulator, productId } = await loadFixture(deployWithProduct);
+      await expect(registry.connect(regulator).attachDocument(productId, DocType.Certificate, "", HASH))
+        .to.be.revertedWithCustomError(registry, "EmptyValue");
+      await expect(registry.connect(regulator).attachDocument(productId, DocType.Certificate, "ipfs://c", ethers.ZeroHash))
+        .to.be.revertedWithCustomError(registry, "ZeroHash");
+    });
+
+    it("rejects a reading with time 0 or too far in the future", async function () {
+      const { registry, oracle, productId } = await loadFixture(deployWithProduct);
+      const now = await time.latest();
+      await expect(registry.connect(oracle).recordCondition(productId, reading(20, 0)))
+        .to.be.revertedWithCustomError(registry, "InvalidTimestamp")
+        .withArgs(0n);
+      await expect(registry.connect(oracle).recordCondition(productId, reading(20, now + 3600)))
+        .to.be.revertedWithCustomError(registry, "InvalidTimestamp");
+      // a small clock drift is fine
+      await expect(registry.connect(oracle).recordCondition(productId, reading(20, now + 60)))
+        .to.emit(registry, "ConditionRecorded");
+    });
+
+    it("rejects unknown product ids everywhere", async function () {
+      const { registry, regulator, oracle } = await loadFixture(deployWithProduct);
+      await expect(registry.getHistory(5)).to.be.revertedWithCustomError(registry, "UnknownProduct");
+      await expect(registry.getDocuments(5)).to.be.revertedWithCustomError(registry, "UnknownProduct");
+      await expect(registry.getProductType(9)).to.be.revertedWithCustomError(registry, "UnknownProductType");
+      await expect(registry.connect(regulator).certify(5)).to.be.revertedWithCustomError(registry, "UnknownProduct");
+      await expect(registry.connect(regulator).recall(5, "x")).to.be.revertedWithCustomError(registry, "UnknownProduct");
+      await expect(registry.connect(oracle).recordCondition(5, reading(20, 1)))
+        .to.be.revertedWithCustomError(registry, "UnknownProduct");
+      await expect(registry.connect(regulator).attachDocument(5, DocType.Other, "ipfs://x", HASH))
+        .to.be.revertedWithCustomError(registry, "UnknownProduct");
+    });
+  });
+
+  describe("roles", function () {
+    it("a revoked producer can no longer register", async function () {
+      const { registry, producer } = await loadFixture(deployWithProduct);
+      await registry.revokeRole(await registry.PRODUCER_ROLE(), producer.address);
+      await expect(registry.connect(producer).registerProduct("LOT-009", "x", 1))
+        .to.be.revertedWithCustomError(registry, "AccessControlUnauthorizedAccount");
+    });
+
+    it("only the admin can grant roles", async function () {
+      const { registry, outsider } = await loadFixture(deployWithProduct);
+      await expect(registry.connect(outsider).grantRole(await registry.PRODUCER_ROLE(), outsider.address))
+        .to.be.revertedWithCustomError(registry, "AccessControlUnauthorizedAccount");
+    });
+  });
+
+  describe("recall", function () {
+    it("only a regulator can recall", async function () {
+      const { registry, producer, productId } = await loadFixture(deployWithProduct);
+      await expect(registry.connect(producer).recall(productId, "bad"))
+        .to.be.revertedWithCustomError(registry, "AccessControlUnauthorizedAccount");
+    });
+
+    it("regulator recalls a breached product and it stops moving", async function () {
+      const { registry, producer, distributor, retailer, regulator, oracle, productId } =
+        await loadFixture(deployWithProduct);
+      await registry.connect(producer).transferCustody(productId, distributor.address);
+      await registry.connect(oracle).recordCondition(productId, reading(90, 1));
+      expect((await registry.getProduct(productId)).breached).to.equal(true);
+
+      await expect(registry.connect(regulator).recall(productId, "temperature breach"))
+        .to.emit(registry, "ProductRecalled")
+        .withArgs(productId, regulator.address, "temperature breach");
+      expect((await registry.getProduct(productId)).recalled).to.equal(true);
+
+      await expect(registry.connect(distributor).updateStatus(productId, Status.InStorage))
+        .to.be.revertedWithCustomError(registry, "IsRecalled")
+        .withArgs(productId);
+      await expect(registry.connect(distributor).transferCustody(productId, retailer.address))
+        .to.be.revertedWithCustomError(registry, "IsRecalled");
+      await expect(registry.connect(regulator).certify(productId))
+        .to.be.revertedWithCustomError(registry, "IsRecalled");
+    });
+
+    it("blocks delivery of a recalled product at the retailer", async function () {
+      const { registry, producer, retailer, regulator, productId } = await loadFixture(deployWithProduct);
+      await registry.connect(producer).transferCustody(productId, retailer.address);
+      await registry.connect(retailer).updateStatus(productId, Status.InStorage);
+      await registry.connect(regulator).recall(productId, "outbreak");
+      await expect(registry.connect(retailer).updateStatus(productId, Status.Delivered))
+        .to.be.revertedWithCustomError(registry, "IsRecalled");
+    });
+
+    it("cannot recall twice, but documents can still be added", async function () {
+      const { registry, regulator, productId } = await loadFixture(deployWithProduct);
+      await registry.connect(regulator).recall(productId, "outbreak");
+      await expect(registry.connect(regulator).recall(productId, "again"))
+        .to.be.revertedWithCustomError(registry, "AlreadyRecalled")
+        .withArgs(productId);
+      await registry.connect(regulator).attachDocument(productId, DocType.Other, "ipfs://recall-report", HASH);
+      expect((await registry.getDocuments(productId)).length).to.equal(1);
+    });
+  });
+
+  describe("full journey", function () {
+    it("farm to store with readings, documents and certification", async function () {
+      const { registry, producer, distributor, retailer, regulator, oracle, productId } =
+        await loadFixture(deployWithProduct);
+      await registry.connect(producer).attachDocument(productId, DocType.Photo, "ipfs://harvest", HASH);
+      await registry.connect(producer).transferCustody(productId, distributor.address);
+      await registry.connect(oracle).recordCondition(productId, reading(25, 10));
+      await registry.connect(distributor).updateStatus(productId, Status.InStorage);
+      await registry.connect(oracle).attachDocument(productId, DocType.SensorLog, "ipfs://log", HASH);
+      await registry.connect(regulator).certify(productId);
+      await registry.connect(regulator).attachDocument(productId, DocType.Certificate, "ipfs://cert", HASH);
+      await registry.connect(distributor).transferCustody(productId, retailer.address);
+      await registry.connect(retailer).updateStatus(productId, Status.InStorage);
+      await registry.connect(retailer).updateStatus(productId, Status.Delivered);
+
+      const p = await registry.getProduct(productId);
+      expect(p.status).to.equal(Status.Delivered);
+      expect(p.custodian).to.equal(retailer.address);
+      expect(p.certified).to.equal(true);
+      expect(p.breached).to.equal(false);
+      expect(p.recalled).to.equal(false);
+      expect((await registry.getHistory(productId)).length).to.equal(6);
+      expect((await registry.getDocuments(productId)).length).to.equal(3);
     });
   });
 });

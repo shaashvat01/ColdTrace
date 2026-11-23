@@ -13,6 +13,9 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
     bytes32 public constant REGULATOR_ROLE = keccak256("REGULATOR_ROLE");
     bytes32 public constant ORACLE_ROLE = keccak256("ORACLE_ROLE");
 
+    // sensor clocks can be a bit ahead of the block time
+    uint64 public constant MAX_CLOCK_DRIFT = 5 minutes;
+
     // id counters and storage, ids start at 1
     uint256 private _nextProductTypeId = 1;
     uint256 private _nextProductId = 1;
@@ -21,6 +24,7 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
     mapping(uint256 => Product) private _products;
     mapping(uint256 => Document[]) private _documents;
     mapping(uint256 => HistoryEntry[]) private _history;
+    mapping(bytes32 => bool) private _usedBatchIds;
 
     // custom errors
     error UnknownProductType(uint256 productTypeId);
@@ -31,6 +35,13 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
     error InvalidTransition(uint256 productId, Status from, Status to);
     error NotAllowed(uint256 productId, address caller);
     error ProductClosed(uint256 productId);
+    error EmptyValue();
+    error DuplicateBatchId(string batchId);
+    error ZeroHash();
+    error AlreadyCertified(uint256 productId);
+    error AlreadyRecalled(uint256 productId);
+    error IsRecalled(uint256 productId);
+    error InvalidTimestamp(uint64 measuredAt);
 
     // reverts if the product id was never registered
     modifier productExists(uint256 productId) {
@@ -41,6 +52,12 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
     // reverts unless the caller is the current custodian
     modifier onlyCustodian(uint256 productId) {
         if (_products[productId].custodian != msg.sender) revert NotCustodian(productId, msg.sender);
+        _;
+    }
+
+    // reverts if a regulator recalled the product
+    modifier notRecalled(uint256 productId) {
+        if (_products[productId].recalled) revert IsRecalled(productId);
         _;
     }
 
@@ -55,6 +72,7 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
         onlyRole(DEFAULT_ADMIN_ROLE)
         returns (uint256 productTypeId)
     {
+        if (bytes(name).length == 0) revert EmptyValue();
         if (minTemp > maxTemp) revert InvalidTempRange(minTemp, maxTemp);
         productTypeId = _nextProductTypeId++;
         _productTypes[productTypeId] = ProductType({name: name, minTemp: minTemp, maxTemp: maxTemp, exists: true});
@@ -67,7 +85,12 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
         onlyRole(PRODUCER_ROLE)
         returns (uint256 productId)
     {
+        if (bytes(batchId).length == 0) revert EmptyValue();
         if (!_productTypes[productTypeId].exists) revert UnknownProductType(productTypeId);
+        // the same batch id can only be registered once
+        bytes32 key = keccak256(bytes(batchId));
+        if (_usedBatchIds[key]) revert DuplicateBatchId(batchId);
+        _usedBatchIds[key] = true;
         productId = _nextProductId++;
         _products[productId] = Product({
             id: productId,
@@ -78,6 +101,7 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
             status: Status.Created,
             certified: false,
             breached: false,
+            recalled: false,
             createdAt: uint64(block.timestamp),
             metaCID: metaCID
         });
@@ -90,6 +114,7 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
         external
         productExists(productId)
         onlyCustodian(productId)
+        notRecalled(productId)
     {
         Product storage p = _products[productId];
         if (p.status != Status.Created && p.status != Status.InStorage) {
@@ -106,6 +131,7 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
         external
         productExists(productId)
         onlyCustodian(productId)
+        notRecalled(productId)
     {
         Status current = _products[productId].status;
         bool received = current == Status.Shipped && status == Status.InStorage;
@@ -124,6 +150,8 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
             || hasRole(REGULATOR_ROLE, msg.sender)
             || (docType == DocType.SensorLog && hasRole(ORACLE_ROLE, msg.sender));
         if (!allowed) revert NotAllowed(productId, msg.sender);
+        if (bytes(cid).length == 0) revert EmptyValue();
+        if (docHash == bytes32(0)) revert ZeroHash();
         _documents[productId].push(
             Document({docType: docType, cid: cid, docHash: docHash, addedBy: msg.sender, addedAt: uint64(block.timestamp)})
         );
@@ -138,6 +166,9 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
     {
         Product storage p = _products[productId];
         if (p.status == Status.Delivered) revert ProductClosed(productId);
+        if (reading.measuredAt == 0 || reading.measuredAt > block.timestamp + MAX_CLOCK_DRIFT) {
+            revert InvalidTimestamp(reading.measuredAt);
+        }
         ProductType storage pt = _productTypes[p.productTypeId];
         bool breach = reading.temp < pt.minTemp || reading.temp > pt.maxTemp;
         if (breach) p.breached = true;
@@ -145,9 +176,26 @@ contract ProvenanceRegistry is IProvenanceRegistry, AccessControl {
     }
 
     // regulator marks the product certified, the certificate file goes through attachDocument
-    function certify(uint256 productId) external productExists(productId) onlyRole(REGULATOR_ROLE) {
+    function certify(uint256 productId)
+        external
+        productExists(productId)
+        onlyRole(REGULATOR_ROLE)
+        notRecalled(productId)
+    {
+        if (_products[productId].certified) revert AlreadyCertified(productId);
         _products[productId].certified = true;
         emit ProductCertified(productId, msg.sender);
+    }
+
+    // regulator pulls a product, for example after a breach, it can not move after this
+    function recall(uint256 productId, string calldata reason)
+        external
+        productExists(productId)
+        onlyRole(REGULATOR_ROLE)
+    {
+        if (_products[productId].recalled) revert AlreadyRecalled(productId);
+        _products[productId].recalled = true;
+        emit ProductRecalled(productId, msg.sender, reason);
     }
 
     // full status and custody trail for a product

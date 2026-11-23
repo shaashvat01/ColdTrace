@@ -8,6 +8,12 @@ module.exports = {
     version: "0.8.24",
     settings: { optimizer: { enabled: true, runs: 200 } },
   },
+  // run npm run gas to write gas used per function to gas-report.txt
+  gasReporter: {
+    enabled: process.env.REPORT_GAS ? true : false,
+    outputFile: "gas-report.txt",
+    noColors: true,
+  },
   networks: {
     amoy: {
       url: AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
