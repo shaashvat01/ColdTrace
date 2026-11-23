@@ -31,28 +31,43 @@ function Product({ id }) {
   }
 
   useEffect(() => {
+    setP(null);
+    setError("");
     load();
   }, [id]);
 
-  if (error) return <div className="page"><a href="#/">Back</a><p className="error">{error}</p></div>;
-  if (!p) return <div className="page">Loading...</div>;
+  if (error) return <div className="box"><a href="#/">← Back</a><p className="error">Could not load product #{id}: {error}</p></div>;
+  if (!p) return <div className="box">Loading...</div>;
+
+  const s = Number(p.status);
 
   return (
-    <div className="page">
-      <a href="#/">Back</a>
-      <h1>Product #{id}</h1>
+    <div>
+      <a href="#/">← Back</a>
 
-      <div className="box">
-        <p>Batch: <b>{p.batchId}</b></p>
-        <p>Type: {type.name} (allowed {toC(type.minTemp)} to {toC(type.maxTemp)})</p>
-        <p>Status: <b>{STATUS[Number(p.status)]}</b></p>
-        <p>Producer: {short(p.producer)} | Custodian: {short(p.custodian)}</p>
-        <p>Registered: {date(p.createdAt)}</p>
-        <p>
-          <span className={p.certified ? "good" : "bad"}>{p.certified ? "Certified" : "Not certified"}</span>{" "}
-          <span className={p.breached ? "bad" : "good"}>{p.breached ? "Temperature breach" : "No breach"}</span>
-        </p>
-        <QRCodeSVG value={window.location.href} size={120} />
+      <div className="box top">
+        <div>
+          <h1>Batch {p.batchId}</h1>
+          <p className="sub">Product #{id} · {type.name} · allowed {toC(type.minTemp)} to {toC(type.maxTemp)}</p>
+          <p>
+            <span className={"pill s" + s}>{STATUS[s]}</span>
+            <span className={p.certified ? "pill good" : "pill gray"}>{p.certified ? "Certified" : "Not certified"}</span>
+            <span className={p.breached ? "pill bad" : "pill good"}>{p.breached ? "Temperature breach" : "Temperature OK"}</span>
+          </p>
+          <p>Producer: {short(p.producer)}</p>
+          <p>Current custodian: {short(p.custodian)}</p>
+          <p>Registered: {date(p.createdAt)}</p>
+        </div>
+        <div className="qr">
+          <QRCodeSVG value={window.location.href} size={130} />
+          <p>Scan to verify</p>
+        </div>
+      </div>
+
+      <div className="progress">
+        {STATUS.map((name, i) => (
+          <div key={name} className={i <= s ? "done" : ""}>{name}</div>
+        ))}
       </div>
 
       <div className="box">
@@ -61,7 +76,11 @@ function Product({ id }) {
           <thead><tr><th>Status</th><th>Custodian</th><th>Time</th></tr></thead>
           <tbody>
             {history.map((h, i) => (
-              <tr key={i}><td>{STATUS[Number(h.status)]}</td><td>{short(h.custodian)}</td><td>{date(h.timestamp)}</td></tr>
+              <tr key={i}>
+                <td><span className={"pill s" + Number(h.status)}>{STATUS[Number(h.status)]}</span></td>
+                <td>{short(h.custodian)}</td>
+                <td>{date(h.timestamp)}</td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -69,39 +88,40 @@ function Product({ id }) {
 
       <div className="box">
         <h2>Sensor readings</h2>
-        <table>
-          <thead><tr><th>Temp</th><th>Lat</th><th>Lon</th><th>Time</th><th>Breach</th></tr></thead>
-          <tbody>
-            {readings.map((r, i) => (
-              <tr key={i} className={r.breach ? "bad" : ""}>
-                <td>{toC(r.temp)}</td>
-                <td>{(Number(r.latE6) / 1e6).toFixed(4)}</td>
-                <td>{(Number(r.lonE6) / 1e6).toFixed(4)}</td>
-                <td>{date(r.measuredAt)}</td>
-                <td>{r.breach ? "YES" : "no"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {readings.length === 0 && <p>No readings yet.</p>}
+        {readings.length === 0 ? <p className="sub">No readings yet.</p> : (
+          <table>
+            <thead><tr><th>Temp</th><th>Location</th><th>Time</th><th>Result</th></tr></thead>
+            <tbody>
+              {readings.map((r, i) => (
+                <tr key={i} className={r.breach ? "breach" : ""}>
+                  <td>{toC(r.temp)}</td>
+                  <td>{(Number(r.latE6) / 1e6).toFixed(4)}, {(Number(r.lonE6) / 1e6).toFixed(4)}</td>
+                  <td>{date(r.measuredAt)}</td>
+                  <td>{r.breach ? <span className="pill bad">Breach</span> : <span className="pill good">OK</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="box">
         <h2>Documents</h2>
-        <table>
-          <thead><tr><th>Type</th><th>CID</th><th>Hash</th><th>Added by</th></tr></thead>
-          <tbody>
-            {docs.map((d, i) => (
-              <tr key={i}>
-                <td>{DOCS[Number(d.docType)]}</td>
-                <td><a href={"https://ipfs.io/ipfs/" + d.cid.replace("ipfs://", "")} target="_blank">{d.cid}</a></td>
-                <td>{d.docHash.slice(0, 12)}...</td>
-                <td>{short(d.addedBy)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {docs.length === 0 && <p>No documents yet.</p>}
+        {docs.length === 0 ? <p className="sub">No documents yet.</p> : (
+          <table>
+            <thead><tr><th>Type</th><th>CID</th><th>Hash</th><th>Added by</th></tr></thead>
+            <tbody>
+              {docs.map((d, i) => (
+                <tr key={i}>
+                  <td>{DOCS[Number(d.docType)]}</td>
+                  <td><a href={"https://ipfs.io/ipfs/" + d.cid.replace("ipfs://", "")} target="_blank">{d.cid}</a></td>
+                  <td className="mono">{d.docHash.slice(0, 12)}...</td>
+                  <td>{short(d.addedBy)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

@@ -49,8 +49,8 @@ function MyProducts({ contract, account, roles }) {
               <tr key={p.id.toString()}>
                 <td><a href={"#/product/" + p.id}>{p.id.toString()}</a></td>
                 <td>{p.batchId}</td>
-                <td>{STATUS[s]}</td>
-                <td>{p.breached ? "YES" : "no"}</td>
+                <td><span className={"pill s" + s}>{STATUS[s]}</span></td>
+                <td>{p.breached ? <span className="pill bad">Breach</span> : <span className="pill good">OK</span>}</td>
                 <td>
                   {(s === 0 || s === 2) && <button onClick={() => ship(p.id)}>Ship</button>}
                   {s === 1 && <button onClick={() => receive(p.id)}>Confirm receipt</button>}
