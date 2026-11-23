@@ -15,13 +15,16 @@ function Product({ id }) {
     try {
       const c = readOnly();
       const prod = await c.getProduct(id);
-      setP(prod);
-      setType(await c.getProductType(prod.productTypeId));
-      setHistory(await c.getHistory(id));
-      setDocs(await c.getDocuments(id));
+      const t = await c.getProductType(prod.productTypeId);
+      const h = await c.getHistory(id);
+      const d = await c.getDocuments(id);
       // readings are only in events so rebuild them from the logs
       const logs = await c.queryFilter(c.filters.ConditionRecorded(id), startBlock);
+      setType(t);
+      setHistory(h);
+      setDocs(d);
       setReadings(logs.map((l) => l.args));
+      setP(prod);
     } catch (e) {
       setError(errMsg(e));
     }
