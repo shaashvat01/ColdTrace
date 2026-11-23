@@ -40,9 +40,13 @@ test/
   ProvenanceRegistry.test.js Hardhat tests
 hardhat.config.js
 package.json
+frontend/
+  src/App.jsx                main page, connects MetaMask and shows panels by role
+  src/chain.js               contract helpers
+  src/components/            one file per panel, Product.jsx is the public product page
 ```
 
-The React front end (`frontend/`) and the Node.js oracle relayer (`oracle/`) will be added in later milestones.
+The Node.js oracle relayer (`oracle/`) will be added in a later milestone.
 
 ## Contract functions
 
@@ -92,6 +96,31 @@ npm run deploy:amoy
 ```
 
 The deploy script adds two product types (leafy greens and vaccines) and grants the five roles. Locally it uses Hardhat test accounts 1-5. On Amoy, set `PRODUCER_ADDRESS`, `DISTRIBUTOR_ADDRESS`, `RETAILER_ADDRESS`, `REGULATOR_ADDRESS` and `ORACLE_ADDRESS` first. Any role without an address is skipped and can be granted later with `grantRole`.
+
+The deploy script also writes the contract address and ABI to `frontend/src/contract.json`.
+
+## Front end
+
+React + ethers.js app in `frontend/`. Deploy the contract first, then:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173 and connect MetaMask. For local testing, add the Hardhat network to MetaMask (RPC `http://127.0.0.1:8545`, chain id 31337) and import the Hardhat test account keys printed by `npx hardhat node`. Account 0 is admin, 1 producer, 2 distributor, 3 retailer, 4 regulator, 5 oracle.
+
+The page shows the panels for whatever roles the connected account has:
+
+- Admin: grant/revoke roles, add product types
+- Producer: register a batch
+- Producer, distributor, retailer: list products you hold, ship, confirm receipt, mark delivered (retailer)
+- Regulator: certify a product
+- Custodians and regulator: attach a document (file is hashed in the browser, CID entered by hand)
+- Anyone: look up a product by ID. The product page shows status, custody history, sensor readings, documents and a QR code that links back to the same page. No wallet needed.
+
+If you restart `npx hardhat node`, reset the account in MetaMask (Settings > Advanced > Clear activity tab data) so the nonce starts over.
 
 ## Team
 

@@ -1,5 +1,7 @@
 // deploys the registry, adds two demo product types and grants roles to demo accounts
 const hre = require("hardhat");
+const fs = require("fs");
+const path = require("path");
 
 const ROLES = ["PRODUCER", "DISTRIBUTOR", "RETAILER", "REGULATOR", "ORACLE"];
 
@@ -27,6 +29,21 @@ async function main() {
     await (await registry.grantRole(role, account)).wait();
     console.log(`${name}_ROLE ->`, account);
   }
+
+  // save address and abi so the frontend can talk to the contract
+  const artifact = await hre.artifacts.readArtifact("ProvenanceRegistry");
+  const receipt = await registry.deploymentTransaction().wait();
+  const network = await hre.ethers.provider.getNetwork();
+  const info = {
+    address: await registry.getAddress(),
+    abi: artifact.abi,
+    chainId: Number(network.chainId),
+    rpc: hre.network.config.url || "http://127.0.0.1:8545",
+    block: receipt.blockNumber,
+  };
+  const out = path.join(__dirname, "../frontend/src/contract.json");
+  fs.writeFileSync(out, JSON.stringify(info, null, 2));
+  console.log("Saved contract info to frontend/src/contract.json");
 }
 
 main().catch((err) => {
