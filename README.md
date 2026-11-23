@@ -148,6 +148,8 @@ Locally it uses Hardhat account 5, which gets ORACLE_ROLE in the deploy script. 
 - `ORACLE_KEY`: private key of the oracle account, defaults to Hardhat account 5
 - `PINATA_JWT`: if set, the sensor log is uploaded to IPFS, otherwise that step is skipped
 
+Put them in `oracle/.env` (gitignored) and run `node --env-file=.env oracle.js 1`.
+
 ## Team
 
 - Huaiyuan Yao: smart contract
