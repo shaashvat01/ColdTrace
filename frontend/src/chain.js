@@ -6,7 +6,6 @@ export const STATUS = ["Created", "Shipped", "InStorage", "Delivered"];
 export const DOCS = ["Certificate", "SensorLog", "Photo", "Other"];
 
 export const deployed = info.address !== "";
-export const startBlock = info.block;
 
 // connects metamask and returns the contract with a signer
 export async function connect() {
@@ -61,6 +60,22 @@ export function errMsg(e) {
     if (parsed) return parsed.name;
   }
   return e.shortMessage || e.message;
+}
+
+// the public amoy rpc only allows 10000 blocks per log query so ask in pieces
+export async function getReadings(contract, id) {
+  const latest = await contract.runner.provider.getBlockNumber();
+  const ranges = [];
+  for (let from = info.block; from <= latest; from += 9000) {
+    ranges.push([from, Math.min(from + 8999, latest)]);
+  }
+  const all = [];
+  // 10 pieces at a time so the rpc does not block us
+  for (let i = 0; i < ranges.length; i += 10) {
+    const part = ranges.slice(i, i + 10).map((r) => contract.queryFilter(contract.filters.ConditionRecorded(id), r[0], r[1]));
+    for (const logs of await Promise.all(part)) all.push(...logs);
+  }
+  return all.map((l) => l.args);
 }
 
 // sends a tx and shows progress in the message box

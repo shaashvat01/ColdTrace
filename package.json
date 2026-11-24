@@ -10,7 +10,8 @@
     "gas": "REPORT_GAS=true hardhat test",
     "node": "hardhat node",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
-    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy"
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
+    "roles:amoy": "hardhat run scripts/setup-roles.js --network amoy"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

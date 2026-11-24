@@ -112,15 +112,42 @@ npm run deploy:local    # terminal 2
 
 Polygon Amoy testnet:
 
+1. Get test POL for your deployer wallet from https://faucet.polygon.technology
+2. Make a `.env` file in the repo root (it is gitignored):
+
+```
+AMOY_RPC_URL=https://polygon-amoy-bor-rpc.publicnode.com
+PRIVATE_KEY=<testnet deployer key>
+```
+
+3. Create and fund one wallet per role, then deploy:
+
 ```bash
-export AMOY_RPC_URL=https://rpc-amoy.polygon.technology
-export PRIVATE_KEY=<testnet deployer key>
+set -a && source .env && set +a
+npm run roles:amoy      # makes producer, distributor, retailer, regulator and oracle wallets, saves them to .env, sends each 0.08 POL
 npm run deploy:amoy
 ```
 
-The deploy script adds two product types (leafy greens and vaccines) and grants the five roles. Locally it uses Hardhat test accounts 1-5. On Amoy, set `PRODUCER_ADDRESS`, `DISTRIBUTOR_ADDRESS`, `RETAILER_ADDRESS`, `REGULATOR_ADDRESS` and `ORACLE_ADDRESS` first. Any role without an address is skipped and can be granted later with `grantRole`.
+The deploy script adds two product types (leafy greens and vaccines) and grants the five roles. Locally it uses Hardhat test accounts 1-5. On Amoy it uses `PRODUCER_ADDRESS`, `DISTRIBUTOR_ADDRESS`, `RETAILER_ADDRESS`, `REGULATOR_ADDRESS` and `ORACLE_ADDRESS` from `.env`. Any role without an address is skipped and can be granted later with `grantRole`.
 
-The deploy script also writes the contract address and ABI to `frontend/src/contract.json`.
+The deploy script also writes the contract address and ABI to `frontend/src/contract.json`, so the front end uses whichever network you deployed to last.
+
+The public Amoy RPC only allows 10,000 blocks per log query, so the front end reads sensor readings in chunks.
+
+### Current deployment
+
+| | |
+|---|---|
+| Network | Polygon Amoy (chain id 80002) |
+| ProvenanceRegistry | [`0x663be1A828474f849eedfcaB548325850fD50852`](https://amoy.polygonscan.com/address/0x663be1A828474f849eedfcaB548325850fD50852) |
+| Admin | `0x22280b927787582B1f35Cd73Ef2E3305b2F27761` |
+| Producer | `0xF002415dFe66Bf9f3698773e1b6192E044d16854` |
+| Distributor | `0xb272214e17329ae883d6421716c3C8d34B4b5266` |
+| Retailer | `0x372824F3A1ac5EEB9a0c70c6406c2F2A634c6CA4` |
+| Regulator | `0xE2a0ab4329293773a99C5462Eb505827FE28164f` |
+| Oracle | `0xbdD49558263bEDE9AF24A7dedbD0158bD1AF8810` |
+
+Sample data: product 1 (`LOT-GREENS-001`, leafy greens) went farm to store, got certified and has a certificate, photo and sensor log on IPFS. Product 2 (`LOT-VAX-001`, vaccine) had a temperature breach in transit and was recalled by the regulator.
 
 ## Front end
 
@@ -169,6 +196,8 @@ Locally it uses Hardhat account 5, which gets ORACLE_ROLE in the deploy script. 
 - `RPC_URL`: defaults to the RPC saved by the deploy script
 - `ORACLE_KEY`: private key of the oracle account, defaults to Hardhat account 5
 - `PINATA_JWT`: if set, the sensor log is uploaded to IPFS, otherwise that step is skipped
+
+For Amoy set `RPC_URL` to the Amoy RPC and `ORACLE_KEY` to the oracle key from the root `.env`.
 
 Put them in `oracle/.env` (gitignored) and run `node --env-file=.env oracle.js 1`.
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { readOnly, STATUS, DOCS, startBlock, toC, short, date, errMsg } from "../chain.js";
+import { readOnly, getReadings, STATUS, DOCS, toC, short, date, errMsg } from "../chain.js";
 import { check, GATEWAY } from "../ipfs.js";
 
 function Product({ id }) {
@@ -21,11 +21,11 @@ function Product({ id }) {
       const h = await c.getHistory(id);
       const d = await c.getDocuments(id);
       // readings are only in events so rebuild them from the logs
-      const logs = await c.queryFilter(c.filters.ConditionRecorded(id), startBlock);
+      const r = await getReadings(c, id);
       setType(t);
       setHistory(h);
       setDocs(d);
-      setReadings(logs.map((l) => l.args));
+      setReadings(r);
       setP(prod);
     } catch (e) {
       setError(errMsg(e));

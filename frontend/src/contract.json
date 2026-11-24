@@ -1,5 +1,5 @@
 {
-  "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+  "address": "0x663be1A828474f849eedfcaB548325850fD50852",
   "abi": [
     {
       "inputs": [
@@ -1141,7 +1141,7 @@
       "type": "function"
     }
   ],
-  "chainId": 31337,
-  "rpc": "http://127.0.0.1:8545",
-  "block": 28
+  "chainId": 80002,
+  "rpc": "https://polygon-amoy-bor-rpc.publicnode.com",
+  "block": 53655744
 }
